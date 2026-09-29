@@ -1,7 +1,22 @@
-use multitouch::{Contact, ContactFilter, Finger};
+use multitouch::{Contact, ContactFilter, ContactState, Finger, Hand, Point, Vector};
 
 fn contact(x: f32, y: f32, id: i32, finger: Option<Finger>) -> Contact {
-    Contact::test_contact(x, y, id, finger)
+    Contact::new(
+        0,
+        0.0,
+        id,
+        ContactState::Touching,
+        finger,
+        Some(Hand::Right),
+        Vector::new(Point::new(x, y), Point::ZERO),
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        Vector::new(Point::ZERO, Point::ZERO),
+        0.0,
+    )
 }
 
 #[test]
@@ -44,5 +59,8 @@ fn farthest_pair_and_angle_work() {
         contact(0.5, 0.2, 1, Some(Finger::Index)),
         contact(0.5, 0.8, 2, Some(Finger::Middle)),
     ];
-    assert!((ContactFilter::inter_finger_angle(&vertical).unwrap() - std::f32::consts::FRAC_PI_2).abs() < 0.01);
+    assert!(
+        (ContactFilter::inter_finger_angle(&vertical).unwrap() - std::f32::consts::FRAC_PI_2).abs()
+            < 0.01
+    );
 }

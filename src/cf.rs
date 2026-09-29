@@ -12,6 +12,10 @@ pub fn number(value: f64) -> Cf {
     CFNumber::new_f64(value).into()
 }
 
+pub fn number_f32(value: f32) -> Cf {
+    CFNumber::new_f32(value).into()
+}
+
 /// Builds a dictionary keyed by CFStrings created from `entries`' names.
 pub fn dictionary(entries: &[(&str, Cf)]) -> CFRetained<CFDictionary> {
     let keys: Vec<CFRetained<CFString>> =
