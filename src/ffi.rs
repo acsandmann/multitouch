@@ -38,7 +38,18 @@ pub type ContactCallback = unsafe extern "C" fn(
     i32,
 ) -> i32;
 
+pub type ContactCallbackWithRefcon = unsafe extern "C" fn(
+    MTDeviceRef,
+    *mut Contact,
+    i32,
+    f64,
+    i32,
+    *mut c_void,
+);
+
 pub type PathCallback = unsafe extern "C" fn(MTDeviceRef, isize, isize, *mut Contact);
+pub type PathCallbackWithRefcon =
+    unsafe extern "C" fn(MTDeviceRef, isize, isize, *mut Contact, *mut c_void);
 
 pub type IOServiceMatchingCallback = unsafe extern "C" fn(*mut c_void, io_iterator_t);
 pub type IOServiceInterestCallback = unsafe extern "C" fn(
@@ -87,9 +98,26 @@ unsafe extern "C" {
     pub fn MTDevicePowerGetEnabled(device: MTDeviceRef, enabled: *mut bool);
 
     pub fn MTRegisterContactFrameCallback(device: MTDeviceRef, callback: Option<ContactCallback>);
-    pub fn MTUnregisterContactFrameCallback(device: MTDeviceRef, callback: Option<ContactCallback>);
+    pub fn MTUnregisterContactFrameCallback(
+        device: MTDeviceRef,
+        callback: Option<ContactCallbackWithRefcon>,
+    );
+    pub fn MTRegisterContactFrameCallbackWithRefcon(
+        device: MTDeviceRef,
+        callback: Option<ContactCallbackWithRefcon>,
+        refcon: *mut c_void,
+    );
     pub fn MTRegisterPathCallback(device: MTDeviceRef, callback: Option<PathCallback>);
     pub fn MTUnregisterPathCallback(device: MTDeviceRef, callback: Option<PathCallback>);
+    pub fn MTRegisterPathCallbackWithRefcon(
+        device: MTDeviceRef,
+        callback: Option<PathCallbackWithRefcon>,
+        refcon: *mut c_void,
+    ) -> bool;
+    pub fn MTUnregisterPathCallbackWithRefcon(
+        device: MTDeviceRef,
+        callback: Option<PathCallbackWithRefcon>,
+    ) -> bool;
 
     pub fn MTDeviceGetMTActuator(device: MTDeviceRef) -> MTActuatorRef;
     pub fn MTActuatorGetSystemActuationsEnabled(actuator: MTActuatorRef) -> bool;

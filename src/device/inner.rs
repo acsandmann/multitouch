@@ -7,22 +7,34 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock, Weak};
 use std::time::Duration;
 
-/// Maps native device refs to their Rust state. The native callbacks fire at
-/// the sensor frame rate and only ever read, so this is a `RwLock` to keep the
-/// hot path from contending with itself (or with device creation/teardown).
+/// Shares Rust state when the same native device is wrapped more than once.
 static DEVICES_BY_REF: OnceLock<RwLock<HashMap<usize, Weak<DeviceInner>>>> = OnceLock::new();
 
 pub(super) fn registry() -> &'static RwLock<HashMap<usize, Weak<DeviceInner>>> {
     DEVICES_BY_REF.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
+/// Give each native registration a strong reference that keeps its refcon
+/// valid until the matching unregister call completes.
+pub(super) fn registration_refcon(inner: &Arc<DeviceInner>) -> *mut std::ffi::c_void {
+    Arc::into_raw(Arc::clone(inner)) as *mut std::ffi::c_void
+}
+
+/// Recover an owned Arc for the duration of a callback. The registration's
+/// strong reference keeps the allocation alive while this increment occurs.
 #[inline]
-pub(super) fn lookup(device: MTDeviceRef) -> Option<Arc<DeviceInner>> {
-    registry()
-        .read()
-        .unwrap_or_else(|e| e.into_inner())
-        .get(&(device as usize))
-        .and_then(Weak::upgrade)
+pub(super) unsafe fn callback_inner(refcon: *mut std::ffi::c_void) -> Option<Arc<DeviceInner>> {
+    let ptr = refcon.cast::<DeviceInner>();
+    if ptr.is_null() {
+        return None;
+    }
+    unsafe { Arc::increment_strong_count(ptr) };
+    Some(unsafe { Arc::from_raw(ptr) })
+}
+
+/// Release the strong reference transferred to a native registration.
+pub(super) unsafe fn release_registration_refcon(inner: &DeviceInner) {
+    unsafe { drop(Arc::from_raw(inner as *const DeviceInner)) };
 }
 
 /// Receiver of raw contact frames, invoked directly on the framework's
@@ -108,9 +120,11 @@ impl Drop for DeviceInner {
         unsafe {
             if self.contact_registered.swap(false, Ordering::AcqRel) {
                 MTUnregisterContactFrameCallback(self.raw, Some(contact_frame_callback));
+                release_registration_refcon(self);
             }
             if self.path_registered.swap(false, Ordering::AcqRel) {
-                MTUnregisterPathCallback(self.raw, Some(path_callback));
+                MTUnregisterPathCallbackWithRefcon(self.raw, Some(path_callback));
+                release_registration_refcon(self);
             }
             let _ = MTDeviceStop(self.raw);
         }

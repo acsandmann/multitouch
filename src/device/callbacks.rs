@@ -1,20 +1,21 @@
-use super::inner::{ContactSink, lookup};
+use super::inner::{callback_inner, ContactSink};
 use crate::ffi::*;
 use crate::{Contact, ContactState, PathEvent};
 use std::sync::Arc;
 
 pub(super) unsafe extern "C" fn contact_frame_callback(
-    device: MTDeviceRef,
+    _device: MTDeviceRef,
     data: *mut Contact,
     count: i32,
     _timestamp: f64,
     _frame: i32,
-) -> i32 {
+    refcon: *mut std::ffi::c_void,
+) {
     if data.is_null() || count < 0 {
-        return 0;
+        return;
     }
-    let Some(inner) = lookup(device) else {
-        return 0;
+    let Some(inner) = (unsafe { callback_inner(refcon) }) else {
+        return;
     };
 
     let mut subscribers = inner
@@ -22,7 +23,7 @@ pub(super) unsafe extern "C" fn contact_frame_callback(
         .lock()
         .unwrap_or_else(|e| e.into_inner());
     if subscribers.is_empty() {
-        return 0;
+        return;
     }
 
     // The framework reuses its buffer, so exactly one copy is made. Every
@@ -43,19 +44,21 @@ pub(super) unsafe extern "C" fn contact_frame_callback(
     if let Some(last) = pending {
         last.deliver(&inner, contacts);
     }
-    0
 }
 
 pub(super) unsafe extern "C" fn path_callback(
-    device: MTDeviceRef,
+    _device: MTDeviceRef,
     path_id: isize,
     stage: isize,
     contact: *mut Contact,
+    refcon: *mut std::ffi::c_void,
 ) {
     if contact.is_null() {
         return;
     }
-    let Some(inner) = lookup(device) else { return };
+    let Some(inner) = (unsafe { callback_inner(refcon) }) else {
+        return;
+    };
 
     let event = PathEvent {
         path_id: path_id.max(0) as usize,

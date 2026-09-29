@@ -1,10 +1,10 @@
-use super::Device;
 use super::callbacks::{contact_frame_callback, path_callback};
-use super::inner::ContactSink;
+use super::inner::{registration_refcon, release_registration_refcon, ContactSink};
 use super::stream::{ContactStream, PathStream};
-use crate::Contact;
+use super::Device;
 use crate::ffi::*;
 use crate::queue::Queue;
+use crate::Contact;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Weak};
 
@@ -27,7 +27,14 @@ impl Device {
             .push(sink);
 
         if !self.inner.contact_registered.swap(true, Ordering::AcqRel) {
-            unsafe { MTRegisterContactFrameCallback(self.inner.raw, Some(contact_frame_callback)) };
+            let refcon = registration_refcon(&self.inner);
+            unsafe {
+                MTRegisterContactFrameCallbackWithRefcon(
+                    self.inner.raw,
+                    Some(contact_frame_callback),
+                    refcon,
+                )
+            };
         }
     }
 
@@ -39,7 +46,14 @@ impl Device {
             .unwrap_or_else(|e| e.into_inner())
             .push(Arc::downgrade(&queue));
         if !self.inner.path_registered.swap(true, Ordering::AcqRel) {
-            unsafe { MTRegisterPathCallback(self.inner.raw, Some(path_callback)) };
+            let refcon = registration_refcon(&self.inner);
+            let registered = unsafe {
+                MTRegisterPathCallbackWithRefcon(self.inner.raw, Some(path_callback), refcon)
+            };
+            if !registered {
+                self.inner.path_registered.store(false, Ordering::Release);
+                unsafe { release_registration_refcon(&self.inner) };
+            }
         }
         PathStream { queue }
     }
@@ -49,6 +63,7 @@ impl Device {
             unsafe {
                 MTUnregisterContactFrameCallback(self.inner.raw, Some(contact_frame_callback))
             };
+            unsafe { release_registration_refcon(&self.inner) };
         }
         let mut subscribers = self
             .inner
@@ -64,7 +79,8 @@ impl Device {
 
     pub fn remove_path_callback(&self) {
         if self.inner.path_registered.swap(false, Ordering::AcqRel) {
-            unsafe { MTUnregisterPathCallback(self.inner.raw, Some(path_callback)) };
+            unsafe { MTUnregisterPathCallbackWithRefcon(self.inner.raw, Some(path_callback)) };
+            unsafe { release_registration_refcon(&self.inner) };
         }
         let mut subscribers = self
             .inner
