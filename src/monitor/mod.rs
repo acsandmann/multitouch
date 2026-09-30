@@ -5,6 +5,18 @@ mod stream;
 
 pub use stream::MonitorStream;
 
+/// Events delivered directly on the native callback thread.
+/// Contacts are borrowed and remain valid only for the duration of the handler.
+pub enum MonitorEvent<'a> {
+    Contacts {
+        device: Device,
+        contacts: &'a [crate::Contact],
+    },
+    DeviceRemoved(u64),
+}
+
+type EventHandler = Box<dyn for<'a> Fn(MonitorEvent<'a>) + Send + Sync>;
+
 use crate::device::Device;
 use crate::ffi::*;
 use crate::queue::Queue;
@@ -26,12 +38,24 @@ impl Default for Monitor {
 
 impl Monitor {
     pub fn new() -> Self {
+        Self::with_event_handler(None)
+    }
+
+    /// Receives contact frames and native device-removal notifications without
+    /// a stream or pump thread. Keep the handler short and nonblocking; it must
+    /// not start or stop the monitor or its devices from inside the callback.
+    pub fn with_handler(handler: impl Fn(MonitorEvent<'_>) + Send + Sync + 'static) -> Self {
+        Self::with_event_handler(Some(Box::new(handler)))
+    }
+
+    fn with_event_handler(handler: Option<EventHandler>) -> Self {
         Self {
             inner: Arc::new(MonitorInner {
                 state: Mutex::new(MonitorState::default()),
                 lifecycle_gate: Mutex::new(()),
                 callback_gate: Mutex::new(()),
                 hub: Arc::new(MonitorHub {
+                    handler,
                     subscribers: Mutex::new(Vec::new()),
                 }),
             }),

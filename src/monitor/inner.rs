@@ -126,6 +126,11 @@ impl MonitorInner {
 
             if let Some(device) = removed {
                 device.stop();
+                // Stopping synchronizes with outstanding contact deliveries.
+                // Removal follows the final frame, so a consumer can retire it.
+                if let Some(id) = device.device_id() {
+                    self.hub.removed(id);
+                }
                 // Lifetime retain taken when the device was accepted.
                 unsafe {
                     let _ = IOObjectRelease(service);

@@ -19,4 +19,4 @@ mod queue;
 
 pub use device::{ContactStream, Device, PathStream};
 pub use haptics::{Actuator, HapticPattern};
-pub use monitor::{Monitor, MonitorStream};
+pub use monitor::{Monitor, MonitorEvent, MonitorStream};

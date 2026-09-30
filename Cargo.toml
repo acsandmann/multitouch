@@ -1,6 +1,6 @@
 [package]
 name = "multitouch"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
 rust-version = "1.85"
 description = "Raw macOS multitouch, gesture recognition, device monitoring, and Force Touch haptics"
@@ -8,6 +8,8 @@ license = "Apache-2.0"
 keywords = ["macos", "multitouch", "trackpad", "gestures", "haptics"]
 categories = ["api-bindings", "os::macos-apis"]
 build = "build.rs"
+
+[workspace]
 
 [lib]
 name = "multitouch"
