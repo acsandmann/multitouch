@@ -36,49 +36,55 @@ impl HapticPattern {
     }
 
     pub(super) fn to_cf_dictionary(&self) -> CFRetained<CFDictionary> {
-        let mut entries = vec![("BaseWaveform", waveform_dictionary(self.base_waveform))];
-
-        if !self.tones.is_empty() {
-            let tones: Vec<Cf> = self.tones.iter().copied().map(tone_dictionary).collect();
-            entries.push(("Tones", array(&tones).into()));
-        }
-
-        if let Some(multipliers) = self.base_multipliers {
-            entries.push(("BaseMultipliers", multiplier_dictionary(multipliers)));
-        }
-        if let Some(multipliers) = self.tone_multipliers {
-            entries.push(("ToneMultipliers", multiplier_dictionary(multipliers)));
-        }
-
-        dictionary(&entries)
+        dictionary([
+            (
+                "BaseWaveform",
+                Some(waveform_dictionary(self.base_waveform)),
+            ),
+            (
+                "Tones",
+                (!self.tones.is_empty()).then(|| {
+                    let tones: Vec<_> = self.tones.iter().copied().map(tone_dictionary).collect();
+                    array(&tones).into()
+                }),
+            ),
+            (
+                "BaseMultipliers",
+                self.base_multipliers.map(multiplier_dictionary),
+            ),
+            (
+                "ToneMultipliers",
+                self.tone_multipliers.map(multiplier_dictionary),
+            ),
+        ])
     }
 }
 
 fn waveform_dictionary(waveform: BaseWaveform) -> Cf {
-    dictionary(&[
-        ("Type", string(waveform.kind.as_str())),
-        ("DurationMS", number(waveform.duration_ms)),
-        ("Amplitude", number(waveform.amplitude)),
+    dictionary([
+        ("Type", Some(string(waveform.kind.as_str()))),
+        ("DurationMS", Some(number(waveform.duration_ms))),
+        ("Amplitude", Some(number(waveform.amplitude))),
     ])
     .into()
 }
 
 fn tone_dictionary(tone: ToneWaveform) -> Cf {
-    dictionary(&[
-        ("Type", string(tone.kind.as_str())),
-        ("DelayMS", number(tone.delay_ms)),
-        ("DurationMS", number(tone.duration_ms)),
-        ("Amplitude", number(tone.amplitude)),
-        ("FrequencykHz", number(tone.frequency_khz)),
+    dictionary([
+        ("Type", Some(string(tone.kind.as_str()))),
+        ("DelayMS", Some(number(tone.delay_ms))),
+        ("DurationMS", Some(number(tone.duration_ms))),
+        ("Amplitude", Some(number(tone.amplitude))),
+        ("FrequencykHz", Some(number(tone.frequency_khz))),
     ])
     .into()
 }
 
 fn multiplier_dictionary(m: IntensityMultipliers) -> Cf {
-    dictionary(&[
-        ("Light", number_f32(m.light)),
-        ("Medium", number_f32(m.medium)),
-        ("Firm", number_f32(m.firm)),
+    dictionary([
+        ("Light", Some(number_f32(m.light))),
+        ("Medium", Some(number_f32(m.medium))),
+        ("Firm", Some(number_f32(m.firm))),
     ])
     .into()
 }

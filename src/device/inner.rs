@@ -40,7 +40,7 @@ pub(super) unsafe fn release_registration_refcon(inner: &DeviceInner) {
 /// Receiver of raw contact frames, invoked directly on the framework's
 /// callback thread. Implementations must be cheap and must not block.
 pub(crate) trait ContactSink: Send + Sync {
-    fn deliver(&self, device: &Arc<DeviceInner>, contacts: Vec<Contact>);
+    fn deliver(&self, device: &Arc<DeviceInner>, contacts: &[Contact]);
 
     /// Called when the device stops delivering frames to this sink.
     fn close(&self) {}
@@ -48,8 +48,8 @@ pub(crate) trait ContactSink: Send + Sync {
 
 impl ContactSink for Queue<Vec<Contact>> {
     #[inline]
-    fn deliver(&self, _device: &Arc<DeviceInner>, contacts: Vec<Contact>) {
-        self.push(contacts);
+    fn deliver(&self, _device: &Arc<DeviceInner>, contacts: &[Contact]) {
+        self.push(contacts.to_vec());
     }
 
     fn close(&self) {

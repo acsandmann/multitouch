@@ -1,10 +1,10 @@
-use super::callbacks::{contact_frame_callback, path_callback};
-use super::inner::{registration_refcon, release_registration_refcon, ContactSink};
-use super::stream::{ContactStream, PathStream};
 use super::Device;
+use super::callbacks::{contact_frame_callback, path_callback};
+use super::inner::{ContactSink, registration_refcon, release_registration_refcon};
+use super::stream::{ContactStream, PathStream};
+use crate::Contact;
 use crate::ffi::*;
 use crate::queue::Queue;
-use crate::Contact;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Weak};
 

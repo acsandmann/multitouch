@@ -10,39 +10,6 @@ pub(super) struct MonitorHub {
 }
 
 impl MonitorHub {
-    /// Fans a frame out to every subscriber. All but the last receive a clone;
-    /// the last takes ownership, so the single-subscriber case never copies.
-    fn broadcast(&self, device: &Arc<DeviceInner>, contacts: Vec<Contact>) {
-        let mut subscribers = self.subscribers.lock().unwrap_or_else(|e| e.into_inner());
-        if subscribers.is_empty() {
-            return;
-        }
-        let mut pending: Option<Arc<Queue<Frame>>> = None;
-        subscribers.retain(|weak| match weak.upgrade() {
-            Some(queue) => {
-                if let Some(previous) = pending.replace(queue) {
-                    previous.push((
-                        Device {
-                            inner: Arc::clone(device),
-                        },
-                        contacts.clone(),
-                    ));
-                }
-                true
-            }
-            None => false,
-        });
-        drop(subscribers);
-        if let Some(last) = pending {
-            last.push((
-                Device {
-                    inner: Arc::clone(device),
-                },
-                contacts,
-            ));
-        }
-    }
-
     pub(super) fn close(&self) {
         let mut subscribers = self.subscribers.lock().unwrap_or_else(|e| e.into_inner());
         for weak in subscribers.drain(..) {
@@ -55,7 +22,20 @@ impl MonitorHub {
 
 impl ContactSink for MonitorHub {
     #[inline]
-    fn deliver(&self, device: &Arc<DeviceInner>, contacts: Vec<Contact>) {
-        self.broadcast(device, contacts);
+    fn deliver(&self, device: &Arc<DeviceInner>, contacts: &[Contact]) {
+        let mut subscribers = self.subscribers.lock().unwrap_or_else(|e| e.into_inner());
+        subscribers.retain(|weak| {
+            if let Some(queue) = weak.upgrade() {
+                queue.push((
+                    Device {
+                        inner: Arc::clone(device),
+                    },
+                    contacts.to_vec(),
+                ));
+                true
+            } else {
+                false
+            }
+        });
     }
 }

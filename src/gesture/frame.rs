@@ -9,8 +9,8 @@ fn is_active_finger(contact: &Contact) -> bool {
 ///
 /// Equivalent to running `ContactFilter::active_fingers` followed by
 /// `centroid`, `max_inter_finger_distance` and `inter_finger_angle`, but done
-/// in place: the recognizer runs once per sensor frame, so it must not
-/// allocate or copy contacts.
+/// in place, with pair geometry deferred until needed. Neither pass allocates
+/// or copies contacts.
 pub(super) struct Frame {
     pub(super) count: usize,
     pub(super) centroid: Point,
@@ -29,23 +29,25 @@ impl Frame {
                 sum_y += contact.normalized.position.y;
             }
         }
-        if count == 0 {
-            return Self {
-                count,
-                centroid: Point::ZERO,
-                distance: 0.0,
-                angle: 0.0,
-            };
+        Self {
+            count,
+            centroid: if count == 0 {
+                Point::ZERO
+            } else {
+                Point::new(sum_x / count as f32, sum_y / count as f32)
+            },
+            distance: 0.0,
+            angle: 0.0,
         }
-        let n = count as f32;
-        let centroid = Point::new(sum_x / n, sum_y / n);
+    }
 
+    pub(super) fn measure_geometry(&mut self, contacts: &[Contact]) {
         // Track the farthest pair by squared distance (first pair wins ties,
         // strictly-greater from zero, as in Subsurface) and take one square
         // root at the end.
         let mut best_sq = 0.0_f32;
         let mut best: Option<(Point, Point)> = None;
-        if count >= 2 {
+        if self.count >= 2 {
             for (i, a) in contacts.iter().enumerate() {
                 if !is_active_finger(a) {
                     continue;
@@ -65,13 +67,8 @@ impl Frame {
                 }
             }
         }
-        let angle = best.map_or(0.0, |(a, b)| (b.y - a.y).atan2(b.x - a.x));
-        Self {
-            count,
-            centroid,
-            distance: best_sq.sqrt(),
-            angle,
-        }
+        self.angle = best.map_or(0.0, |(a, b)| (b.y - a.y).atan2(b.x - a.x));
+        self.distance = best_sq.sqrt();
     }
 }
 
@@ -126,7 +123,8 @@ mod tests {
 
         for frame in frames {
             let expected = ContactFilter::active_fingers(&frame);
-            let m = Frame::measure(&frame);
+            let mut m = Frame::measure(&frame);
+            m.measure_geometry(&frame);
             assert_eq!(m.count, expected.len());
             let c = ContactFilter::centroid(&expected);
             assert_eq!((m.centroid.x, m.centroid.y), (c.x, c.y));

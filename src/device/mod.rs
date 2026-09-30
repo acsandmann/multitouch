@@ -60,6 +60,7 @@ impl Device {
         unsafe { MTDeviceIsAvailable() }
     }
 
+    #[allow(clippy::should_implement_trait)] // Native default device can be unavailable.
     pub fn default() -> Option<Self> {
         Self::from_owned_raw(unsafe { MTDeviceCreateDefault() })
     }

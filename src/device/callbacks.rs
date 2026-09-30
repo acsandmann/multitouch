@@ -1,7 +1,6 @@
-use super::inner::{callback_inner, ContactSink};
+use super::inner::callback_inner;
 use crate::ffi::*;
 use crate::{Contact, ContactState, PathEvent};
-use std::sync::Arc;
 
 pub(super) unsafe extern "C" fn contact_frame_callback(
     _device: MTDeviceRef,
@@ -26,24 +25,16 @@ pub(super) unsafe extern "C" fn contact_frame_callback(
         return;
     }
 
-    // The framework reuses its buffer, so exactly one copy is made. Every
-    // subscriber but the last gets a clone; the last takes ownership, so the
-    // common single-subscriber case allocates once per frame.
-    let contacts = unsafe { std::slice::from_raw_parts(data, count as usize) }.to_vec();
-    let mut pending: Option<Arc<dyn ContactSink>> = None;
-    subscribers.retain(|weak| match weak.upgrade() {
-        Some(sink) => {
-            if let Some(previous) = pending.replace(sink) {
-                previous.deliver(&inner, contacts.clone());
-            }
+    // Borrow the framework buffer; only queue-backed consumers copy it.
+    let contacts = unsafe { std::slice::from_raw_parts(data, count as usize) };
+    subscribers.retain(|weak| {
+        if let Some(sink) = weak.upgrade() {
+            sink.deliver(&inner, contacts);
             true
+        } else {
+            false
         }
-        None => false,
     });
-    drop(subscribers);
-    if let Some(last) = pending {
-        last.deliver(&inner, contacts);
-    }
 }
 
 pub(super) unsafe extern "C" fn path_callback(

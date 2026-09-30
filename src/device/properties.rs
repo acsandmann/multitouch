@@ -89,7 +89,7 @@ impl Device {
             Some(98 | 99 | 100 | 101 | 102 | 103 | 104 | 108 | 109) => "MacBook Trackpad".into(),
             Some(105) => "Touch Bar".into(),
             Some(112 | 113) => "Magic Mouse".into(),
-            Some(128 | 129 | 130) => "Magic Trackpad".into(),
+            Some(128..=130) => "Magic Trackpad".into(),
             family => {
                 let id = family
                     .map(|v| v.to_string())

@@ -82,7 +82,7 @@ impl GestureRecognizer {
     }
 
     fn process_at(&mut self, contacts: &[Contact], now: Instant) -> Option<GestureEvent> {
-        let frame = Frame::measure(contacts);
+        let mut frame = Frame::measure(contacts);
         let count = frame.count;
 
         if count == 0 {
@@ -110,6 +110,9 @@ impl GestureRecognizer {
                 self.reset_state();
                 return event;
             }
+            if self.gesture_kind != Some(GestureKind::Swipe) {
+                frame.measure_geometry(contacts);
+            }
             return self.emit_tracked(&frame, GesturePhase::Changed, now);
         }
 
@@ -132,6 +135,7 @@ impl GestureRecognizer {
             return None;
         }
 
+        frame.measure_geometry(contacts);
         let (centroid, distance, angle) = (frame.centroid, frame.distance, frame.angle);
 
         let (origin_centroid, origin_distance, origin_angle) = match (
@@ -156,24 +160,21 @@ impl GestureRecognizer {
             }
         };
 
-        let distance_delta = distance - origin_distance;
-        let angle_delta = angle_difference(origin_angle, angle);
-        let translation = (centroid.x - origin_centroid.x).hypot(centroid.y - origin_centroid.y);
-
         self.gesture_kind = if self
             .recognized_gesture_types
             .contains(GestureTypes::MAGNIFY)
-            && distance_delta.abs() > self.minimum_magnification_distance
+            && (distance - origin_distance).abs() > self.minimum_magnification_distance
         {
             Some(GestureKind::Magnify)
         } else if self
             .recognized_gesture_types
             .contains(GestureTypes::ROTATION)
-            && angle_delta.abs() > self.minimum_rotation
+            && angle_difference(origin_angle, angle).abs() > self.minimum_rotation
         {
             Some(GestureKind::Rotation)
         } else if self.recognized_gesture_types.contains(GestureTypes::SWIPE)
-            && translation > self.minimum_swipe_translation
+            && (centroid.x - origin_centroid.x).hypot(centroid.y - origin_centroid.y)
+                > self.minimum_swipe_translation
         {
             Some(GestureKind::Swipe)
         } else {
@@ -191,13 +192,7 @@ impl GestureRecognizer {
             });
         }
 
-        self.phase = GesturePhase::Began;
-        let event = self.make_event(GesturePhase::Began, centroid, distance, angle, now, count);
-        self.last_centroid = Some(centroid);
-        self.last_distance = Some(distance);
-        self.last_angle = Some(angle);
-        self.last_event_time = Some(now);
-        event
+        self.emit_tracked(&frame, GesturePhase::Began, now)
     }
 
     pub fn reset(&mut self) -> Option<GestureEvent> {

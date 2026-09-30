@@ -16,13 +16,31 @@ pub fn number_f32(value: f32) -> Cf {
     CFNumber::new_f32(value).into()
 }
 
-/// Builds a dictionary keyed by CFStrings created from `entries`' names.
-pub fn dictionary(entries: &[(&str, Cf)]) -> CFRetained<CFDictionary> {
-    let keys: Vec<CFRetained<CFString>> =
-        entries.iter().map(|(k, _)| CFString::from_str(k)).collect();
-    let key_refs: Vec<&CFString> = keys.iter().map(|k| &**k).collect();
-    let value_refs: Vec<&CFType> = entries.iter().map(|(_, v)| &**v).collect();
-    let dict = CFDictionary::<CFString, CFType>::from_slices(&key_refs, &value_refs);
+/// Builds a dictionary with stack-backed temporary storage, omitting absent values.
+pub fn dictionary<const N: usize>(entries: [(&str, Option<Cf>); N]) -> CFRetained<CFDictionary> {
+    let keys: [_; N] = std::array::from_fn(|i| {
+        entries[i]
+            .1
+            .as_ref()
+            .map(|_| CFString::from_str(entries[i].0))
+    });
+    let mut pairs = keys
+        .iter()
+        .zip(&entries)
+        .filter_map(|(key, (_, value))| Some((key.as_deref()?, value.as_deref()?)));
+    let dict = if let Some((key, value)) = pairs.next() {
+        let mut key_refs = [key; N];
+        let mut value_refs = [value; N];
+        let mut len = 1;
+        for (key, value) in pairs {
+            key_refs[len] = key;
+            value_refs[len] = value;
+            len += 1;
+        }
+        CFDictionary::<CFString, CFType>::from_slices(&key_refs[..len], &value_refs[..len])
+    } else {
+        CFDictionary::<CFString, CFType>::from_slices(&[], &[])
+    };
     // SAFETY: the typed and untyped CFDictionary are the same object.
     unsafe { CFRetained::cast_unchecked::<CFDictionary>(dict) }
 }

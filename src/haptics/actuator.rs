@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 struct ActuatorInner {
     raw: MTActuatorRef,
-    owns_ref: bool,
 }
 
 unsafe impl Send for ActuatorInner {}
@@ -19,9 +18,7 @@ impl Drop for ActuatorInner {
             if MTActuatorIsOpen(self.raw) {
                 let _ = MTActuatorClose(self.raw);
             }
-            if self.owns_ref {
-                cf::release(self.raw.cast_const());
-            }
+            cf::release(self.raw.cast_const());
         }
     }
 }
@@ -40,20 +37,14 @@ impl Actuator {
         // Actuator remains valid even if the Device wrapper is dropped first.
         unsafe { cf::retain(raw.cast_const()) };
         Some(Self {
-            inner: Arc::new(ActuatorInner {
-                raw,
-                owns_ref: true,
-            }),
+            inner: Arc::new(ActuatorInner { raw }),
         })
     }
 
     pub fn from_device_id(device_id: u64) -> Option<Self> {
         let raw = unsafe { MTActuatorCreateFromDeviceID(device_id) };
         (!raw.is_null()).then(|| Self {
-            inner: Arc::new(ActuatorInner {
-                raw,
-                owns_ref: true,
-            }),
+            inner: Arc::new(ActuatorInner { raw }),
         })
     }
 
