@@ -1,16 +1,17 @@
-use super::hub::MonitorHub;
-use crate::device::Device;
-use crate::ffi::*;
 use std::collections::HashMap;
 use std::ptr;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
+
+use super::hub::MonitorHub;
+use crate::device::{ContactSink, Device};
+use crate::ffi::*;
 
 pub(super) struct MonitorState {
     pub(super) running: bool,
     pub(super) port: IONotificationPortRef,
     pub(super) added_iterator: io_iterator_t,
     pub(super) removed_iterator: io_iterator_t,
-    pub(super) devices: HashMap<u64, Device>,
+    pub(super) devices: HashMap<u64, (Device, Arc<dyn ContactSink>)>,
     pub(super) services: HashMap<io_service_t, u64>,
 }
 
@@ -89,11 +90,11 @@ impl MonitorInner {
                 }
                 // Frames go straight from the framework callback into the hub;
                 // no per-device pump thread or extra queue hop is needed.
-                let hub: Weak<MonitorHub> = Arc::downgrade(&self.hub);
-                device.add_contact_sink(hub);
+                let sink = self.hub.sink(&device);
+                device.add_contact_sink(Arc::downgrade(&sink));
 
                 let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
-                state.devices.insert(device_id, device);
+                state.devices.insert(device_id, (device, sink));
                 state.services.insert(service, device_id);
             }
 
@@ -124,7 +125,7 @@ impl MonitorInner {
                     .and_then(|device_id| state.devices.remove(&device_id))
             };
 
-            if let Some(device) = removed {
+            if let Some((device, _sink)) = removed {
                 device.stop();
                 // Stopping synchronizes with outstanding contact deliveries.
                 // Removal follows the final frame, so a consumer can retire it.
@@ -182,7 +183,7 @@ impl MonitorInner {
             return;
         }
 
-        for device in devices.values() {
+        for (device, _) in devices.values() {
             device.stop();
         }
         for service in services.keys().copied() {

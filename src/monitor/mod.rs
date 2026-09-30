@@ -17,14 +17,17 @@ pub enum MonitorEvent<'a> {
 
 type EventHandler = Box<dyn for<'a> Fn(MonitorEvent<'a>) + Send + Sync>;
 
-use crate::device::Device;
-use crate::ffi::*;
-use crate::queue::Queue;
+use std::ptr;
+use std::sync::{Arc, Mutex};
+
 use callbacks::{devices_added_callback, devices_removed_callback};
 use hub::MonitorHub;
 use inner::{MonitorInner, MonitorState, monitor_registry};
-use std::ptr;
-use std::sync::{Arc, Mutex};
+
+use crate::device::{ContactEvent, ContactSubscription, Device, gesture_handler};
+use crate::ffi::*;
+use crate::queue::Queue;
+use crate::{GestureEvent, GestureRecognizer};
 
 pub struct Monitor {
     inner: Arc<MonitorInner>,
@@ -38,17 +41,52 @@ impl Default for Monitor {
 
 impl Monitor {
     pub fn new() -> Self {
-        Self::with_event_handler(None)
+        Self::with_event_handler(None, None)
     }
 
     /// Receives contact frames and native device-removal notifications without
     /// a stream or pump thread. Keep the handler short and nonblocking; it must
     /// not start or stop the monitor or its devices from inside the callback.
     pub fn with_handler(handler: impl Fn(MonitorEvent<'_>) + Send + Sync + 'static) -> Self {
-        Self::with_event_handler(Some(Box::new(handler)))
+        Self::with_event_handler(Some(Box::new(handler)), None)
     }
 
-    fn with_event_handler(handler: Option<EventHandler>) -> Self {
+    /// Creates a separate synchronous handler for each accepted physical device.
+    /// Factories run at attachment; borrowed frames never pass through a queue.
+    /// See `ContactSubscription` for callback synchronization rules. Stop/removal
+    /// delivers `ContactEvent::Stopped`; restarting creates fresh handlers.
+    pub fn with_device_handler<H>(factory: impl Fn(&Device) -> H + Send + Sync + 'static) -> Self
+    where
+        H: FnMut(ContactEvent<'_>) + Send + 'static,
+    {
+        Self::with_event_handler(
+            None,
+            Some(Box::new(move |device| {
+                ContactSubscription::new(factory(device))
+            })),
+        )
+    }
+
+    /// Recognizes gestures inline, with independent state for each device.
+    /// The handler can run concurrently for different devices. It must not
+    /// start/stop the monitor or devices from inside a delivery.
+    pub fn with_gesture_handler(
+        recognizer: impl Fn(&Device) -> GestureRecognizer + Send + Sync + 'static,
+        handler: impl Fn(&Device, GestureEvent) + Send + Sync + 'static,
+    ) -> Self {
+        let handler = Arc::new(handler);
+        Self::with_device_handler(move |device| {
+            let recognizer = recognizer(device);
+            let device = device.clone();
+            let handler = handler.clone();
+            gesture_handler(recognizer, move |event| handler(&device, event))
+        })
+    }
+
+    fn with_event_handler(
+        handler: Option<EventHandler>,
+        factory: Option<hub::DeviceFactory>,
+    ) -> Self {
         Self {
             inner: Arc::new(MonitorInner {
                 state: Mutex::new(MonitorState::default()),
@@ -56,6 +94,8 @@ impl Monitor {
                 callback_gate: Mutex::new(()),
                 hub: Arc::new(MonitorHub {
                     handler,
+                    factory,
+                    has_subscribers: std::sync::atomic::AtomicBool::new(false),
                     subscribers: Mutex::new(Vec::new()),
                 }),
             }),
@@ -159,6 +199,10 @@ impl Monitor {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .push(Arc::downgrade(&queue));
+        self.inner
+            .hub
+            .has_subscribers
+            .store(true, std::sync::atomic::Ordering::Release);
         MonitorStream { queue }
     }
 
@@ -169,7 +213,7 @@ impl Monitor {
             .unwrap_or_else(|e| e.into_inner())
             .devices
             .values()
-            .cloned()
+            .map(|(device, _)| device.clone())
             .collect()
     }
 }

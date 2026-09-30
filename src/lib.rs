@@ -17,6 +17,6 @@ mod monitor;
 mod power;
 mod queue;
 
-pub use device::{ContactStream, Device, PathStream};
+pub use device::{ContactEvent, ContactStream, ContactSubscription, Device, PathStream};
 pub use haptics::{Actuator, HapticPattern};
 pub use monitor::{Monitor, MonitorEvent, MonitorStream};

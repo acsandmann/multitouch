@@ -10,7 +10,7 @@ pub(super) unsafe extern "C" fn contact_frame_callback(
     _frame: i32,
     refcon: *mut std::ffi::c_void,
 ) {
-    if data.is_null() || count < 0 {
+    if count < 0 || (data.is_null() && count != 0) {
         return;
     }
     let Some(inner) = (unsafe { callback_inner(refcon) }) else {
@@ -26,7 +26,11 @@ pub(super) unsafe extern "C" fn contact_frame_callback(
     }
 
     // Borrow the framework buffer; only queue-backed consumers copy it.
-    let contacts = unsafe { std::slice::from_raw_parts(data, count as usize) };
+    let contacts = if count == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(data, count as usize) }
+    };
     subscribers.retain(|weak| {
         if let Some(sink) = weak.upgrade() {
             sink.deliver(&inner, contacts);

@@ -1,20 +1,24 @@
+mod callback_subscription;
 mod callbacks;
 mod inner;
 mod properties;
 mod stream;
 mod subscribe;
 
+use std::fmt;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, Weak};
+
+pub(crate) use callback_subscription::gesture_handler;
+pub use callback_subscription::{ContactEvent, ContactSubscription};
+use inner::registry;
 pub(crate) use inner::{ContactSink, DeviceInner};
+use objc2_core_foundation::CFRetained;
 pub use stream::{ContactStream, PathStream};
 
 use crate::ffi::*;
 use crate::haptics::Actuator;
 use crate::{RunMode, cf, power};
-use inner::registry;
-use objc2_core_foundation::CFRetained;
-use std::fmt;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, Weak};
 
 #[derive(Clone)]
 pub struct Device {

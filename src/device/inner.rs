@@ -1,11 +1,12 @@
-use super::callbacks::{contact_frame_callback, path_callback};
-use crate::ffi::*;
-use crate::queue::Queue;
-use crate::{Contact, PathEvent, RunMode};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock, Weak};
 use std::time::Duration;
+
+use super::callbacks::{contact_frame_callback, path_callback};
+use crate::ffi::*;
+use crate::queue::Queue;
+use crate::{Contact, PathEvent, RunMode};
 
 /// Shares Rust state when the same native device is wrapped more than once.
 static DEVICES_BY_REF: OnceLock<RwLock<HashMap<usize, Weak<DeviceInner>>>> = OnceLock::new();
@@ -44,6 +45,8 @@ pub(crate) trait ContactSink: Send + Sync {
 
     /// Called when the device stops delivering frames to this sink.
     fn close(&self) {}
+
+    fn reset(&self) {}
 }
 
 impl ContactSink for Queue<Vec<Contact>> {
@@ -81,6 +84,15 @@ impl DeviceInner {
         }
         unsafe {
             let _ = MTDeviceStop(self.raw);
+        }
+        for sink in self
+            .contact_subscribers
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .filter_map(Weak::upgrade)
+        {
+            sink.reset();
         }
         std::thread::sleep(Duration::from_secs(1));
         if self.wanted_running.load(Ordering::Acquire) {
