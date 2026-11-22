@@ -4,10 +4,7 @@ mod types;
 pub use types::*;
 
 pub mod gesture;
-pub use gesture::{
-    ContactFilter, FingerCountChange, GestureEndReason, GestureEvent, GesturePhase,
-    GestureRecognizer, GestureStream, GestureTypes, MagnifyEvent, RotationEvent, SwipeEvent,
-};
+pub use gesture::{ContactFilter, FingerCountChange, GestureEndReason, GestureEvent, GesturePhase, GestureRecognizer, GestureStream, GestureTypes, MagnifyEvent, RotationEvent, SwipeEvent};
 
 mod cf;
 mod device;

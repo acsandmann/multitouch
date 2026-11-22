@@ -1,154 +1,123 @@
-use multitouch::{
-    Contact, ContactState, Finger, FingerCountChange, GestureEndReason, GestureEvent, GesturePhase,
-    GestureRecognizer, GestureTypes, Hand, Point, Vector,
-};
+use multitouch::{Contact, ContactState, Finger, FingerCountChange, GestureEndReason, GestureEvent, GesturePhase, GestureRecognizer, GestureTypes, Hand, Point, Vector};
 
 fn contact(x: f32, y: f32, id: i32, finger: Option<Finger>) -> Contact {
-    Contact::new(
-        0,
-        0.0,
-        id,
-        ContactState::Touching,
-        finger,
-        Some(Hand::Right),
-        Vector::new(Point::new(x, y), Point::ZERO),
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        Vector::new(Point::ZERO, Point::ZERO),
-        0.0,
-    )
+  Contact::new(
+    0,
+    0.0,
+    id,
+    ContactState::Touching,
+    finger,
+    Some(Hand::Right),
+    Vector::new(Point::new(x, y), Point::ZERO),
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    Vector::new(Point::ZERO, Point::ZERO),
+    0.0,
+  )
 }
 
-fn two(a: (f32, f32), b: (f32, f32)) -> [Contact; 2] {
-    [
-        contact(a.0, a.1, 1, Some(Finger::Index)),
-        contact(b.0, b.1, 2, Some(Finger::Middle)),
-    ]
-}
+fn two(a: (f32, f32), b: (f32, f32)) -> [Contact; 2] { [contact(a.0, a.1, 1, Some(Finger::Index)), contact(b.0, b.1, 2, Some(Finger::Middle))] }
 
 #[test]
 fn swipe_begins_and_changes() {
-    let mut r = GestureRecognizer::new(2);
-    assert_eq!(
-        r.process(&two((0.3, 0.5), (0.4, 0.5))).unwrap().phase(),
-        GesturePhase::Determining
-    );
+  let mut r = GestureRecognizer::new(2);
+  assert_eq!(r.process(&two((0.3, 0.5), (0.4, 0.5))).unwrap().phase(), GesturePhase::Determining);
 
-    let event = r.process(&two((0.4, 0.5), (0.5, 0.5))).unwrap();
-    let GestureEvent::Swipe(event) = event else {
-        panic!("expected swipe")
-    };
-    assert_eq!(event.phase, GesturePhase::Began);
-    assert!(event.translation.x > 0.0);
+  let event = r.process(&two((0.4, 0.5), (0.5, 0.5))).unwrap();
+  let GestureEvent::Swipe(event) = event else { panic!("expected swipe") };
+  assert_eq!(event.phase, GesturePhase::Began);
+  assert!(event.translation.x > 0.0);
 
-    let event = r.process(&two((0.5, 0.5), (0.6, 0.5))).unwrap();
-    let GestureEvent::Swipe(event) = event else {
-        panic!("expected changed swipe")
-    };
-    assert_eq!(event.phase, GesturePhase::Changed);
+  let event = r.process(&two((0.5, 0.5), (0.6, 0.5))).unwrap();
+  let GestureEvent::Swipe(event) = event else { panic!("expected changed swipe") };
+  assert_eq!(event.phase, GesturePhase::Changed);
 }
 
 #[test]
 fn magnify_has_priority_over_swipe() {
-    let mut r = GestureRecognizer::new(2);
-    let _ = r.process(&two((0.45, 0.5), (0.55, 0.5)));
-    let event = r.process(&two((0.35, 0.5), (0.75, 0.5))).unwrap();
-    assert!(matches!(event, GestureEvent::Magnify(_)));
+  let mut r = GestureRecognizer::new(2);
+  let _ = r.process(&two((0.45, 0.5), (0.55, 0.5)));
+  let event = r.process(&two((0.35, 0.5), (0.75, 0.5))).unwrap();
+  assert!(matches!(event, GestureEvent::Magnify(_)));
 }
 
 #[test]
 fn rotation_is_detected_and_can_be_disabled() {
-    let mut r = GestureRecognizer::new(2);
-    let _ = r.process(&two((0.3, 0.5), (0.7, 0.5)));
-    let event = r.process(&two((0.3268, 0.4), (0.6732, 0.6))).unwrap();
-    assert!(matches!(event, GestureEvent::Rotation(_)));
+  let mut r = GestureRecognizer::new(2);
+  let _ = r.process(&two((0.3, 0.5), (0.7, 0.5)));
+  let event = r.process(&two((0.3268, 0.4), (0.6732, 0.6))).unwrap();
+  assert!(matches!(event, GestureEvent::Rotation(_)));
 
-    let mut r =
-        GestureRecognizer::new(2).with_gesture_types(GestureTypes::SWIPE | GestureTypes::MAGNIFY);
-    let _ = r.process(&two((0.3, 0.5), (0.7, 0.5)));
-    let event = r.process(&two((0.3268, 0.4), (0.6732, 0.6))).unwrap();
-    assert_eq!(event.phase(), GesturePhase::Determining);
+  let mut r = GestureRecognizer::new(2).with_gesture_types(GestureTypes::SWIPE | GestureTypes::MAGNIFY);
+  let _ = r.process(&two((0.3, 0.5), (0.7, 0.5)));
+  let event = r.process(&two((0.3268, 0.4), (0.6732, 0.6))).unwrap();
+  assert_eq!(event.phase(), GesturePhase::Determining);
 }
 
 #[test]
 fn unresolved_lift_and_timeout_are_reported() {
-    let mut r = GestureRecognizer::new(2);
-    let _ = r.process(&two((0.5, 0.5), (0.6, 0.5)));
-    assert!(matches!(
-        r.process(&[]),
-        Some(GestureEvent::UnresolvedEnded(GestureEndReason::Lifted))
-    ));
+  let mut r = GestureRecognizer::new(2);
+  let _ = r.process(&two((0.5, 0.5), (0.6, 0.5)));
+  assert!(matches!(r.process(&[]), Some(GestureEvent::UnresolvedEnded(GestureEndReason::Lifted))));
 
-    let mut r = GestureRecognizer::new(2);
-    let _ = r.process(&two((0.5, 0.5), (0.6, 0.5)));
-    assert_eq!(
-        r.timeout(),
-        Some(GestureEvent::UnresolvedEnded(GestureEndReason::TimedOut))
-    );
+  let mut r = GestureRecognizer::new(2);
+  let _ = r.process(&two((0.5, 0.5), (0.6, 0.5)));
+  assert_eq!(r.timeout(), Some(GestureEvent::UnresolvedEnded(GestureEndReason::TimedOut)));
 }
 
 #[test]
 fn resolved_gesture_is_sticky_until_below_two_fingers() {
-    let mut r = GestureRecognizer::new(2);
-    let _ = r.process(&two((0.3, 0.5), (0.4, 0.5)));
-    let _ = r.process(&two((0.4, 0.5), (0.5, 0.5)));
+  let mut r = GestureRecognizer::new(2);
+  let _ = r.process(&two((0.3, 0.5), (0.4, 0.5)));
+  let _ = r.process(&two((0.4, 0.5), (0.5, 0.5)));
 
-    let three = [
-        contact(0.4, 0.5, 1, Some(Finger::Index)),
-        contact(0.5, 0.5, 2, Some(Finger::Middle)),
-        contact(0.6, 0.5, 3, Some(Finger::Ring)),
-    ];
-    let event = r.process(&three).unwrap();
-    let GestureEvent::Swipe(event) = event else {
-        panic!("expected swipe")
-    };
-    assert_eq!(event.phase, GesturePhase::Changed);
-    assert_eq!(event.finger_count, 3);
+  let three = [
+    contact(0.4, 0.5, 1, Some(Finger::Index)),
+    contact(0.5, 0.5, 2, Some(Finger::Middle)),
+    contact(0.6, 0.5, 3, Some(Finger::Ring)),
+  ];
+  let event = r.process(&three).unwrap();
+  let GestureEvent::Swipe(event) = event else { panic!("expected swipe") };
+  assert_eq!(event.phase, GesturePhase::Changed);
+  assert_eq!(event.finger_count, 3);
 
-    let one = [contact(0.5, 0.5, 1, Some(Finger::Index))];
-    let GestureEvent::Swipe(event) = r.process(&one).unwrap() else {
-        panic!("expected ended swipe")
-    };
-    assert_eq!(event.phase, GesturePhase::Ended(GestureEndReason::Lifted));
+  let one = [contact(0.5, 0.5, 1, Some(Finger::Index))];
+  let GestureEvent::Swipe(event) = r.process(&one).unwrap() else { panic!("expected ended swipe") };
+  assert_eq!(event.phase, GesturePhase::Ended(GestureEndReason::Lifted));
 }
 
 #[test]
 fn exact_count_mode_reports_count_change() {
-    let mut r = GestureRecognizer::new(3).with_exact_finger_count(true);
-    let origin = [
-        contact(0.3, 0.5, 1, Some(Finger::Index)),
-        contact(0.4, 0.5, 2, Some(Finger::Middle)),
-        contact(0.5, 0.5, 3, Some(Finger::Ring)),
-    ];
-    let moved = [
-        contact(0.4, 0.5, 1, Some(Finger::Index)),
-        contact(0.5, 0.5, 2, Some(Finger::Middle)),
-        contact(0.6, 0.5, 3, Some(Finger::Ring)),
-    ];
-    let _ = r.process(&origin);
-    assert_eq!(r.process(&moved).unwrap().phase(), GesturePhase::Began);
+  let mut r = GestureRecognizer::new(3).with_exact_finger_count(true);
+  let origin = [
+    contact(0.3, 0.5, 1, Some(Finger::Index)),
+    contact(0.4, 0.5, 2, Some(Finger::Middle)),
+    contact(0.5, 0.5, 3, Some(Finger::Ring)),
+  ];
+  let moved = [
+    contact(0.4, 0.5, 1, Some(Finger::Index)),
+    contact(0.5, 0.5, 2, Some(Finger::Middle)),
+    contact(0.6, 0.5, 3, Some(Finger::Ring)),
+  ];
+  let _ = r.process(&origin);
+  assert_eq!(r.process(&moved).unwrap().phase(), GesturePhase::Began);
 
-    let event = r.process(&two((0.4, 0.5), (0.5, 0.5))).unwrap();
-    assert_eq!(
-        event.phase(),
-        GesturePhase::Ended(GestureEndReason::FingerCountChanged(
-            FingerCountChange::Decreased
-        ))
-    );
+  let event = r.process(&two((0.4, 0.5), (0.5, 0.5))).unwrap();
+  assert_eq!(event.phase(), GesturePhase::Ended(GestureEndReason::FingerCountChanged(FingerCountChange::Decreased)));
 }
 
 #[test]
 fn activation_after_finger_count_decrease_is_blocked() {
-    let mut r = GestureRecognizer::new(2);
-    let three = [
-        contact(0.3, 0.5, 1, Some(Finger::Index)),
-        contact(0.4, 0.5, 2, Some(Finger::Middle)),
-        contact(0.5, 0.5, 3, Some(Finger::Ring)),
-    ];
-    let _ = r.process(&three);
-    assert!(r.process(&two((0.4, 0.5), (0.5, 0.5))).is_none());
-    assert!(r.process(&two((0.5, 0.5), (0.6, 0.5))).is_none());
+  let mut r = GestureRecognizer::new(2);
+  let three = [
+    contact(0.3, 0.5, 1, Some(Finger::Index)),
+    contact(0.4, 0.5, 2, Some(Finger::Middle)),
+    contact(0.5, 0.5, 3, Some(Finger::Ring)),
+  ];
+  let _ = r.process(&three);
+  assert!(r.process(&two((0.4, 0.5), (0.5, 0.5))).is_none());
+  assert!(r.process(&two((0.5, 0.5), (0.6, 0.5))).is_none());
 }

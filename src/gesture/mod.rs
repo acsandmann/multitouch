@@ -8,10 +8,7 @@ mod kinds;
 mod recognizer;
 mod stream;
 
-pub use event::{
-    FingerCountChange, GestureEndReason, GestureEvent, GesturePhase, MagnifyEvent, RotationEvent,
-    SwipeEvent,
-};
+pub use event::{FingerCountChange, GestureEndReason, GestureEvent, GesturePhase, MagnifyEvent, RotationEvent, SwipeEvent};
 pub use filter::ContactFilter;
 pub use kinds::GestureTypes;
 pub use recognizer::GestureRecognizer;
