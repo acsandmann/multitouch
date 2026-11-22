@@ -281,10 +281,16 @@ mod app {
         // Aspect-fit the trackpad surface between header and footer.
         let avail_w = (width - MARGIN * 2.0).max(1.0);
         let avail_h = (height - HEADER_HEIGHT - FOOTER_HEIGHT - MARGIN).max(1.0);
-        let (pad_w, pad_h) = if avail_w / avail_h > TRACKPAD_ASPECT {
-            (avail_h * TRACKPAD_ASPECT, avail_h)
+        let aspect = device
+            .sensor_surface_dimensions()
+            .filter(|&(width, height)| width > 0 && height > 0)
+            .map_or(TRACKPAD_ASPECT, |(width, height)| {
+                f64::from(width) / f64::from(height)
+            });
+        let (pad_w, pad_h) = if avail_w / avail_h > aspect {
+            (avail_h * aspect, avail_h)
         } else {
-            (avail_w, avail_w / TRACKPAD_ASPECT)
+            (avail_w, avail_w / aspect)
         };
         let pad = NSRect::new(
             NSPoint::new(

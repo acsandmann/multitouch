@@ -4,6 +4,29 @@ use objc2_core_foundation::CFString;
 use std::ptr;
 use std::sync::atomic::Ordering;
 
+/// The type of multitouch device reported by MultitouchSupport.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DeviceKind {
+    Trackpad,
+    MagicMouse,
+    /// A built-in display that reports a placeholder 1×1 sensor grid.
+    /// Its touches arrive as HID events rather than MultitouchSupport frames.
+    Touchscreen,
+    Other,
+}
+
+impl DeviceKind {
+    fn from_family(family: Option<i32>, device: &Device) -> Self {
+        match family {
+            Some(98..=105 | 108 | 109 | 128..=130 | 137) => Self::Trackpad,
+            Some(113) if device.is_built_in() => Self::Trackpad,
+            Some(112 | 113) => Self::MagicMouse,
+            Some(2) if device.is_built_in() => Self::Touchscreen,
+            _ => Self::Other,
+        }
+    }
+}
+
 impl Device {
     pub fn is_running(&self) -> bool {
         unsafe { MTDeviceIsRunning(self.inner.raw) }
@@ -84,12 +107,19 @@ impl Device {
         unsafe { value.as_ref() }.map(ToString::to_string)
     }
 
+    pub fn kind(&self) -> DeviceKind {
+        DeviceKind::from_family(self.family_id(), self)
+    }
+
     pub fn name(&self) -> String {
-        match self.family_id() {
-            Some(98..=105 | 108 | 109) => "MacBook Trackpad".into(),
-            Some(112 | 113) => "Magic Mouse".into(),
-            Some(128..=130) => "Magic Trackpad".into(),
-            family => {
+        let family = self.family_id();
+        match DeviceKind::from_family(family, self) {
+            DeviceKind::Trackpad if matches!(family, Some(128..=130)) => "Magic Trackpad".into(),
+            DeviceKind::Trackpad => "MacBook Trackpad".into(),
+            DeviceKind::MagicMouse => "Magic Mouse".into(),
+            DeviceKind::Touchscreen => "MacBook Pro Display".into(),
+            DeviceKind::Other if family == Some(176) => "Touch Bar".into(),
+            DeviceKind::Other => {
                 let id = family
                     .map(|v| v.to_string())
                     .unwrap_or_else(|| "unknown".into());

@@ -14,6 +14,7 @@ pub use callback_subscription::{ContactEvent, ContactSubscription};
 use inner::registry;
 pub(crate) use inner::{ContactSink, DeviceInner};
 use objc2_core_foundation::CFRetained;
+pub use properties::DeviceKind;
 pub use stream::{ContactStream, PathStream};
 
 use crate::ffi::*;
