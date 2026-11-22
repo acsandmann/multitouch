@@ -47,9 +47,6 @@ pub(super) fn monitor_registry() -> &'static Mutex<HashMap<io_iterator_t, Weak<M
 
 impl MonitorInner {
     fn is_likely_trackpad(device: &Device) -> bool {
-        if device.family_id() == Some(105) {
-            return false;
-        }
         !device
             .sensor_surface_dimensions()
             .is_some_and(|(width, height)| width > 1000 && height < 100)

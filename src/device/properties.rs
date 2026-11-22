@@ -86,8 +86,7 @@ impl Device {
 
     pub fn name(&self) -> String {
         match self.family_id() {
-            Some(98 | 99 | 100 | 101 | 102 | 103 | 104 | 108 | 109) => "MacBook Trackpad".into(),
-            Some(105) => "Touch Bar".into(),
+            Some(98..=105 | 108 | 109) => "MacBook Trackpad".into(),
             Some(112 | 113) => "Magic Mouse".into(),
             Some(128..=130) => "Magic Trackpad".into(),
             family => {
